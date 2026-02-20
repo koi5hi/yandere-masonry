@@ -1,3 +1,7 @@
+## v0.37.3
+
+- fix: 修复 gelbooru 无法下载原图
+
 ## v0.37.2
 
 - feat: 新增通过 FileSystemAccess API 下载图片的设置
