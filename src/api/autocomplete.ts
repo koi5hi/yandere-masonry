@@ -27,6 +27,16 @@ async function fetchRule34Autocomplete(term: string) {
   return result.map(e => e.value as string)
 }
 
+async function fetchEshuushuuAutocomplete(term: string) {
+  term = term.replace(/#\d+$/, '')
+  const response = await fetch(`https://e-shuushuu.net/api/v1/tags/?search=${term}&limit=10`)
+  if (!response.ok) {
+    return []
+  }
+  const result: { tags: any[] } = await response.json()
+  return result.tags.map(e => `${e.title}#${e.tag_id}`)
+}
+
 const autocompleteActions: Record<string, (term: string) => Promise<string[]>> = {
   'yande.re': async term => searchTagsByName(term),
   'konachan.com': async term => searchTagsByName(term),
@@ -34,6 +44,7 @@ const autocompleteActions: Record<string, (term: string) => Promise<string[]>> =
   'danbooru.donmai.us': fetchDanbooruAutocomplete,
   'gelbooru.com': fetchGelbooruAutocomplete,
   'rule34.xxx': fetchRule34Autocomplete,
+  'e-shuushuu.net': fetchEshuushuuAutocomplete,
 }
 
 export const isAutocompleteAct = Object.keys(autocompleteActions).includes(location.hostname)

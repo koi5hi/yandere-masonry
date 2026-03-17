@@ -25,7 +25,7 @@ export const siteDomains = [
   'rule34hentai.net',
 ]
 
-export const isSupportTagSearch = isBooruSite() || !['e-shuushuu.net', 'nozomi.la'].includes(location.host)
+export const isSupportTagSearch = isBooruSite() || !['nozomi.la'].includes(location.host)
 export const notPartialSupportSite = !([
   'e-shuushuu.net',
   'www.zerochan.net',
