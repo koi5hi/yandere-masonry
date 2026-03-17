@@ -13,6 +13,13 @@ export function isURL(s: string) {
 }
 
 function downloadByGM(url: string, name: string, options?: Partial<Tampermonkey.DownloadRequest>) {
+  if (location.hostname == 'gelbooru.com') {
+    options = options || {}
+    options.headers = {
+      ...options.headers,
+      referer: location.href,
+    }
+  }
   return new Promise<void>((resolve, reject) => {
     GM_download({
       url,
