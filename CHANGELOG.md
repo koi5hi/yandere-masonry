@@ -1,3 +1,7 @@
+## v0.37.4
+
+- fix: 修复 e-shuushuu.net 无法加载
+
 ## v0.37.3
 
 - fix: 修复 gelbooru 无法下载原图

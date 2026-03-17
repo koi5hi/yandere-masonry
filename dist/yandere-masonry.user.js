@@ -2,7 +2,7 @@
 // @name                 Yande.re 瀑布流浏览
 // @name:en              Yande.re Masonry
 // @name:zh              Yande.re 瀑布流浏览
-// @version              0.37.3
+// @version              0.37.4
 // @description          Yande.re/Konachan 中文标签 & 缩略图放大 & 双击翻页 & 瀑布流浏览模式(支持 danbooru/gelbooru/rule34/sakugabooru/lolibooru/safebooru/3dbooru/xbooru/atfbooru/aibooru 等)
 // @description:en       Yande.re/Konachan Masonry(Waterfall) Layout. Also support danbooru/gelbooru/rule34/sakugabooru/lolibooru/safebooru/3dbooru/xbooru/atfbooru/aibooru et cetera.
 // @description:zh       Yande.re/Konachan 中文标签 & 缩略图放大 & 双击翻页 & 瀑布流浏览模式(支持 danbooru/gelbooru/rule34/sakugabooru/lolibooru/safebooru/3dbooru/xbooru/atfbooru/aibooru 等)
@@ -6844,7 +6844,7 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
     "realbooru.com",
     "rule34hentai.net"
   ];
-  const isSupportTagSearch = isBooruSite() || !["e-shuushuu.net", "nozomi.la"].includes(location.host);
+  const isSupportTagSearch = isBooruSite() || !["nozomi.la"].includes(location.host);
   const notPartialSupportSite = ![
     "e-shuushuu.net",
     "www.zerochan.net",
@@ -6957,39 +6957,120 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
   function isEshuushuuPage() {
     return location.hostname == "e-shuushuu.net";
   }
-  async function fetchEshuushuuPosts(page) {
-    const url = new URL("https://e-shuushuu.net");
-    url.searchParams.set("page", page.toString());
-    const htmlResp = await fetch(url.href);
-    const doc = new DOMParser().parseFromString(await htmlResp.text(), "text/html");
-    const results = [...doc.querySelectorAll("#content .image_thread")].map((el) => {
-      const id = el.getAttribute("id")?.slice(1);
-      const fileUrl = el.querySelector(".thumb_image")?.href;
-      const fileExt = fileUrl?.split(".").pop();
-      const tags = [...el.querySelectorAll(".quicktag")].map((e) => e.innerText.replace(/[\t\n]/g, "")).join("").split('"').filter((e) => e.trim()).map((e) => e.replace(/\s/g, "_"));
-      const [_, width, height] = el.querySelector(".meta dl dd:nth-child(8)")?.innerText.match(/(\d+)x(\d+)/) || [];
-      const date = el.querySelector(".meta dl dd:nth-child(4)")?.innerText;
+  function extract(allData) {
+    const images = [];
+    for (let i = 2; i < allData.length; i++) {
+      const schema = allData[i];
+      if (typeof schema !== "object" || schema === null || Array.isArray(schema))
+        continue;
+      if (!schema.image_id)
+        continue;
+      const img = {};
+      for (const [fieldName, fieldIdx] of Object.entries(schema)) {
+        const val = allData[fieldIdx];
+        if (val === void 0)
+          continue;
+        if (fieldName === "tags" && Array.isArray(val)) {
+          const tags = [];
+          for (const tagIdx of val) {
+            const tagData = allData[tagIdx];
+            if (tagData && typeof tagData === "object" && tagData.tag_id) {
+              tags.push({
+                id: tagData.tag_id,
+                name: allData[tagData.title],
+                type_id: allData[tagData.type],
+                type_name: allData[tagData.type_name]
+              });
+            }
+          }
+          img[fieldName] = tags;
+        } else if (fieldName === "user" && typeof val === "object" && val.user_id !== void 0) {
+          img.user = {
+            user_id: allData[val.user_id],
+            username: allData[val.username],
+            avatar: allData[val.avatar],
+            user_title: allData[val.user_title],
+            avatar_url: allData[val.avatar_url]
+          };
+        } else {
+          img[fieldName] = val;
+        }
+      }
+      if (img.image_id) {
+        images.push(img);
+      }
+    }
+    return images;
+  }
+  async function fetchEshuushuuPosts(page, tags) {
+    const url = new URL("https://e-shuushuu.net/__data.json");
+    url.searchParams.set("page", `${page}`);
+    if (tags) {
+      const match2 = tags.match(/[\w\s]+#(\d+)/);
+      if (match2?.[1])
+        url.searchParams.set("tags", match2[1]);
+    }
+    const resp = await fetch(url);
+    const json = await resp.json();
+    const results = extract(json.nodes[1].data).map((img) => {
+      const id = img.image_id;
+      const fileExt = img.ext;
+      const width = img.width;
+      const height = img.height;
+      const tags2 = (img.tags || []).map((e) => e.name);
       return {
         id,
-        postView: el.querySelector(".title a")?.href,
-        previewUrl: el.querySelector(".thumb_image img")?.src,
-        fileUrl,
-        tags,
-        width: Number(width),
-        height: Number(height),
-        aspectRatio: Number(width) / Number(height),
+        postView: `https://e-shuushuu.net/images/${id}`,
+        previewUrl: img.thumbnail_url,
+        fileUrl: img.url,
+        tags: tags2,
+        _tags: img.tags,
+        width,
+        height,
+        aspectRatio: width / height,
         fileExt,
-        fileDownloadName: `e-shuushuu ${id} ${tags.join(" ")}.${fileExt}`,
-        fileDownloadText: `${width}\xD7${height} [${el.querySelector(".meta dl dd:nth-child(6)")?.innerText.replace(/[\t\n]/g, "")}] ${fileExt?.toUpperCase()}`,
+        fileDownloadName: `e-shuushuu ${id} ${tags2.join(" ")}.${fileExt}`,
+        fileDownloadText: `${width}\xD7${height} [${(img.filesize / 1024 / 1024).toFixed(2)} MB] ${fileExt?.toUpperCase()}`,
         rating: "",
-        createdAt: date && parse(date, "MMMM do, yyyy h:mm a", new Date())
+        createdAt: new Date(img.date_added)
       };
     });
     return results;
   }
+  const isCNLang$3 = i18n.locale.includes("zh");
+  const tagSortOrder$2 = ["artist", "copyright", "character", "general"];
+  const tagMap = {
+    Artist: [i18n.t("Ym0HIEu9Q80qXB31LuC6c"), "#FB8C00", "artist"],
+    Source: [i18n.t("juT6gwLOg5r1h2vFpFf6P"), "#AB47BC", "copyright"],
+    Character: [i18n.t("aonlPAu9kEkkwNvQg0DBk"), "#66BB6A", "character"]
+  };
+  function getTagDetail(image) {
+    const tags = image._tags;
+    return {
+      voted: false,
+      tags: tags.map((tag2) => {
+        const tagCN = isCNLang$3 && window.__tagsCN?.[tag2.name.replace(/_/g, " ")];
+        const tagType = tagMap[tag2.type_name];
+        const tagText = [
+          tagType?.[0] && `[ ${tagType[0]} ] `,
+          tag2.name,
+          tagCN && ` [ ${tagCN} ]`
+        ].filter(Boolean).join("");
+        return {
+          tag: tag2.name,
+          tagText,
+          color: tagType?.[1] || "#8F77B5",
+          type: tagType?.[2] || "general"
+        };
+      }).sort((a, b) => {
+        return tagSortOrder$2.indexOf(a.type) - tagSortOrder$2.indexOf(b.type);
+      })
+    };
+  }
   const eshuushuu = {
     is: isEshuushuuPage,
-    posts: fetchEshuushuuPosts
+    posts: fetchEshuushuuPosts,
+    tagDetail: getTagDetail
   };
   function isGelbooruFavPage() {
     return /gelbooru\.com\/index\.php\?page\=favorites\&s\=view/.test(location.href);
@@ -8033,13 +8114,23 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
     const result = await response.json();
     return result.map((e) => e.value);
   }
+  async function fetchEshuushuuAutocomplete(term) {
+    term = term.replace(/#\d+$/, "");
+    const response = await fetch(`https://e-shuushuu.net/api/v1/tags/?search=${term}&limit=10`);
+    if (!response.ok) {
+      return [];
+    }
+    const result = await response.json();
+    return result.tags.map((e) => `${e.title}#${e.tag_id}`);
+  }
   const autocompleteActions = {
     "yande.re": async (term) => searchTagsByName(term),
     "konachan.com": async (term) => searchTagsByName(term),
     "konachan.net": async (term) => searchTagsByName(term),
     "danbooru.donmai.us": fetchDanbooruAutocomplete,
     "gelbooru.com": fetchGelbooruAutocomplete,
-    "rule34.xxx": fetchRule34Autocomplete
+    "rule34.xxx": fetchRule34Autocomplete,
+    "e-shuushuu.net": fetchEshuushuuAutocomplete
   };
   const isAutocompleteAct = Object.keys(autocompleteActions).includes(location.hostname);
   const fetchAutocomplete = autocompleteActions[location.hostname] || (() => {
@@ -8981,7 +9072,7 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
   const tagSortOrder = ["artist", "copyright", "character", "general"];
   function getDanbooruTagDetail(image) {
     const { data, tags } = image;
-    const tagMap = {
+    const tagMap2 = {
       artist: [i18n.t("Ym0HIEu9Q80qXB31LuC6c"), "#FB8C00", data.tag_string_artist.split(/\s+/)],
       copyright: [i18n.t("juT6gwLOg5r1h2vFpFf6P"), "#AB47BC", data.tag_string_copyright.split(/\s+/)],
       character: [i18n.t("aonlPAu9kEkkwNvQg0DBk"), "#66BB6A", data.tag_string_character.split(/\s+/)]
@@ -8991,7 +9082,7 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
       tags: tags.map((tag2) => {
         const tagCN = isCNLang$1 && window.__tagsCN?.[tag2.replace(/_/g, " ")];
         const typedTag = { type: "", text: "", color: "" };
-        for (const [key, val] of Object.entries(tagMap)) {
+        for (const [key, val] of Object.entries(tagMap2)) {
           if (val[2].includes(tag2)) {
             typedTag.type = key;
             typedTag.text = val[0];
@@ -9067,6 +9158,10 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
     }
     if (isDanbooruPage()) {
       postDetail.value = getDanbooruTagDetail(imageSelected.value);
+      return;
+    }
+    if (eshuushuu.is()) {
+      postDetail.value = eshuushuu.tagDetail(imageSelected.value);
       return;
     }
     await handlePostDetail(imageSelected);
