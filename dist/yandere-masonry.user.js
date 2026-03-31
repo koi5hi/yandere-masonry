@@ -2,7 +2,7 @@
 // @name                 Yande.re 瀑布流浏览
 // @name:en              Yande.re Masonry
 // @name:zh              Yande.re 瀑布流浏览
-// @version              0.37.4
+// @version              0.37.5
 // @description          Yande.re/Konachan 中文标签 & 缩略图放大 & 双击翻页 & 瀑布流浏览模式(支持 danbooru/gelbooru/rule34/sakugabooru/lolibooru/safebooru/3dbooru/xbooru/atfbooru/aibooru 等)
 // @description:en       Yande.re/Konachan Masonry(Waterfall) Layout. Also support danbooru/gelbooru/rule34/sakugabooru/lolibooru/safebooru/3dbooru/xbooru/atfbooru/aibooru et cetera.
 // @description:zh       Yande.re/Konachan 中文标签 & 缩略图放大 & 双击翻页 & 瀑布流浏览模式(支持 danbooru/gelbooru/rule34/sakugabooru/lolibooru/safebooru/3dbooru/xbooru/atfbooru/aibooru 等)
@@ -48,6 +48,7 @@
 // @grant                GM_addElement
 // @grant                GM_info
 // @grant                GM_download
+// @grant                GM_xmlhttpRequest
 // ==/UserScript==
 
 var __defProp = Object.defineProperty;
@@ -5186,34 +5187,68 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
     return /^https?:\/\/.*/.test(s);
   }
   function downloadByGM(url, name, options) {
-    if (location.hostname == "gelbooru.com") {
-      options = options || {};
-      options.headers = {
-        ...options.headers,
-        referer: location.href
-      };
-    }
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       GM_download({
         url,
         name,
+        headers: {
+          "Referer": location.href,
+          "User-Agent": navigator.userAgent,
+          ...options?.headers
+        },
+        saveAs: false,
         onload: () => resolve(),
+        onerror: () => downloadByXHR(url, name, options),
+        ...options
+      });
+    });
+  }
+  function downloadByXHR(url, filename, options, returnBlob = false) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        url,
+        method: "GET",
+        responseType: "blob",
+        headers: {
+          "Referer": location.href,
+          "User-Agent": navigator.userAgent,
+          ...options?.headers
+        },
+        onload(res) {
+          if (res.status === 200) {
+            if (returnBlob) {
+              resolve(res.response);
+              return;
+            }
+            const blobUrl = URL.createObjectURL(res.response);
+            GM_download({
+              url: blobUrl,
+              name: filename,
+              saveAs: false,
+              onload: () => {
+                URL.revokeObjectURL(blobUrl);
+                resolve();
+              },
+              onerror: (err) => {
+                URL.revokeObjectURL(blobUrl);
+                reject(new Error(err.error));
+              }
+            });
+          } else {
+            reject(new Error(`${res.status} ${res.statusText}`));
+          }
+        },
         onerror: (err) => reject(new Error(err.error)),
         ...options
       });
     });
   }
-  async function downloadByFetch(source, fileName) {
+  async function downloadByFsa(url, filename, subdir) {
     try {
-      const resp = await fetch(source);
-      if (!resp.ok)
-        throw new Error(`Response not ok: ${resp.status}`);
-      const url = URL.createObjectURL(await resp.blob());
-      downloadByLink(url, fileName);
-      URL.revokeObjectURL(url);
+      return await saveFile(url, filename, subdir);
     } catch (err) {
-      console.log("downloadByFetch err: ", err);
-      downloadByLink(source, fileName);
+      const blob = await downloadByXHR(url, filename, {}, true);
+      return await saveFile(blob, filename, subdir);
     }
   }
   function downloadByLink(source, fileName) {
@@ -5239,7 +5274,7 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
           break;
         case "fsa":
           {
-            const res = await saveFile(url, name, settings.isDLSubpath ? location.hostname : void 0);
+            const res = await downloadByFsa(url, name, settings.isDLSubpath ? location.hostname : void 0);
             showMsg({ type: "success", msg: `${i18n.t("kMu1vOFmTJac-ylP0b13Z")}: ${res}` });
           }
           break;
@@ -5250,8 +5285,8 @@ Make sure you have modified Tampermonkey's "Download Mode" to "Browser API".`;
           break;
       }
     } catch (err) {
-      console.log("downloadByGM err: ", err);
-      await downloadByFetch(url, name);
+      console.log("downloadFile err: ", err);
+      downloadByLink(url, name);
     }
   }
   function downloadText(text, filename = "file.txt") {

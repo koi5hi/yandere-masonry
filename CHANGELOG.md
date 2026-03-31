@@ -1,3 +1,7 @@
+## v0.37.5
+
+- fix: 修复 gelbooru 无法下载图片到子目录
+
 ## v0.37.4
 
 - fix: 修复 e-shuushuu.net 无法加载
