@@ -141,5 +141,7 @@
   "jx2FWrN3O_8T7U5aSbvXj": "Choose where to save the image",
   "1sUsdpwBzU4gBf7Mrcihq": "Image saving directory",
   "rcpw-hgymDP2bsJPPUb_F": "Choose how to download images",
-  "Ah2uP1cGRBQ6jff-SIc-Q": "Image download method"
+  "Ah2uP1cGRBQ6jff-SIc-Q": "Image download method",
+  "downloadDefaultSizeTitle": "Default download image size",
+  "downloadDefaultSizeSubtitle": "Choose the image source used by batch and quick downloads by default"
 }

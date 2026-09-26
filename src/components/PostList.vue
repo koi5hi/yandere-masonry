@@ -213,19 +213,25 @@ import { computed, nextTick, onMounted, onUnmounted, ref, set, watch } from 'vue
 import type { Post } from '@himeka/booru'
 import PostDetail from './PostDetail.vue'
 import { downloadFile, fancyboxShow, notReachBottom, showMsg, throttleScroll } from '@/utils'
-import { notPartialSupportSite } from '@/api/booru'
+import { isSampleDownloadSupportedSite, notPartialSupportSite } from '@/api/booru'
 import { addPostToFavorites, isFavBtnShow } from '@/api/fav'
 import { isRule34FavPage } from '@/api/rule34'
 import { isGelbooruFavPage } from '@/api/gelbooru'
 import { isR34PahealHome } from '@/api/r34-paheal'
 import { initPosts, refreshPosts, searchPosts } from '@/store/actions/post'
 import { removeFromSelectedList, settings, store, addToSelectedList as storeAddToSelectedList } from '@/store'
+import { getActiveDownloadUrlKey, getAvailableDownloadUrlKeys, resolvePostDownloadSource } from '@/utils/download-source'
 import i18n from '@/utils/i18n'
 
 const notFitScreen = ref(localStorage.getItem('__fitScreen') == '0')
 const isR34Fav = ref(isRule34FavPage() || isGelbooruFavPage())
 const showImageList = ref(true)
 const showFab = ref(false)
+const hasSampleDownload = isSampleDownloadSupportedSite()
+const activeDownloadUrlKey = computed(() => {
+  const keys = getAvailableDownloadUrlKeys(hasSampleDownload, store.isYKSite)
+  return getActiveDownloadUrlKey(keys, settings.downloadUrlKey)
+})
 
 watch(
   () => settings.selectedColumn,
@@ -312,17 +318,18 @@ function addFavorite(id?: string) {
 async function downloadCtxPost(post?: Post) {
   const img = post || ctxActPost.value
   if (!img) return
-  let { fileDownloadName } = img
-  if (!img.fileUrl) return
+  const { url: downloadUrl, name: resolvedName } = resolvePostDownloadSource(img, activeDownloadUrlKey.value)
+  let downloadName = resolvedName
+  if (!downloadUrl) return
   if (store.isYKSite) {
-    fileDownloadName = `${location.hostname} ${img.id} ${img.tags.join(' ')}`
+    downloadName = `${location.hostname} ${img.id} ${img.tags.join(' ')}`
   }
   if (isR34PahealHome()) {
     // @ts-expect-error protected prop
-    fileDownloadName = `${fileDownloadName}.${img.data.file_name.split('.').pop()}`
+    downloadName = `${downloadName}.${img.data.file_name.split('.').pop()}`
   }
   try {
-    await downloadFile(img.fileUrl, fileDownloadName)
+    await downloadFile(downloadUrl, downloadName)
   } catch (error) {
     showMsg({ msg: `${i18n.t('FAqj5ONm50QMfIt9Vq2p1')}: ${error}`, type: 'error' })
   }

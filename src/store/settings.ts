@@ -1,3 +1,5 @@
+import type { DownloadUrlKey } from '@/utils/download-source'
+
 export const langList = [
   { value: 'zh-Hans', label: '简体中文' },
   { value: 'zh-Hant', label: '繁體中文' },
@@ -46,6 +48,7 @@ const defaultSettings = {
   detailButtonsBottom: isMobile,
   closePopupOnImgClick: isMobile,
   downloadBy: 'tm' as 'tm' | 'fsa' | 'newtab',
+  downloadUrlKey: 'fileUrl' as DownloadUrlKey,
 }
 
 export const initialSettings: typeof defaultSettings = {

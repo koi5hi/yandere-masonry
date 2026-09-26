@@ -15,7 +15,7 @@ export async function handlePostDetail(img: Ref<Post>) {
     ?.detail(img.value.id) || {}
   if (tags?.length) img.value.tags = tags
   if (fileUrl) img.value.fileUrl = fileUrl
-  if (sampleUrl) img.value.fileUrl = sampleUrl
+  if (sampleUrl) img.value.sampleUrl = sampleUrl
 }
 
 export async function setPostDetail(imageSelected: Ref<Post>, postDetail: Ref<PostDetail>) {

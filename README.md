@@ -452,8 +452,6 @@ A: 请到 [GitHub Issues](https://github.com/asadahimeka/yandere-masonry/issues)
 
 ## 💻 开发指南
 
-本项目代码 **非** AI 生成，仅 Readme 文件由 AI 优化
-
 ### 技术栈
 
 - **框架**: Vue 2.7 (Composition API)

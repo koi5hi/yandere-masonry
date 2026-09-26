@@ -40,6 +40,16 @@ export const notPartialSupportSite = !([
   'rule34hentai.net',
 ].includes(location.host))
 
+const sampleDownloadHosts = new Set([
+  'anime-pictures.net',
+  'gelbooru.com',
+  'rule34.xxx',
+])
+
+export const isSampleDownloadSupportedSite = () => {
+  return notPartialSupportSite && (isBooruSite() || sampleDownloadHosts.has(location.host))
+}
+
 export const defCompTags = (() => {
   if (store.isYKSite) {
     return ['rating:s', 'rating:q', 'rating:e', 'order:score', 'order:vote', 'order:mpixels', 'order:landscape', 'order:portrait']

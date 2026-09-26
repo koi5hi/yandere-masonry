@@ -161,7 +161,7 @@
               {{ $t('J2Ckb_-LITfmww4aEksqk') }}
             </v-btn>
           </v-subheader>
-          <div v-if="store.isYKSite" class="d-flex align-center mt-1 ml-2">
+          <div v-if="showDownloadSourceSwitch" class="d-flex align-center mt-1 ml-2">
             <v-radio-group
               v-model="downloadUrlKey"
               class="mr-1 mt-0"
@@ -169,9 +169,10 @@
               dense
               row
             >
-              <v-radio :label="$t('aVqN9TBRCbNGsW3Y2D2Nm')" value="jpegUrl" />
-              <v-radio :label="$t('jDjashxA-oBPo19DXI504')" value="fileUrl" />
+              <v-radio v-for="item in downloadSourceOptions" :key="item.value" :label="item.text" :value="item.value" />
             </v-radio-group>
+          </div>
+          <div v-if="store.isYKSite" class="d-flex align-center mt-1 ml-2">
             <v-switch
               v-model="isExportUrlDecode"
               class="mt-0 mr-1"
@@ -203,7 +204,7 @@
               <v-list-item-content style="max-width: 240px;">
                 <!-- <v-list-item-title :title="item[downloadNameKey]" v-text="item[downloadNameKey]" /> -->
                 <v-list-item-subtitle :title="item.fileNameWithTags" v-text="item.fileNameWithTags" />
-                <v-list-item-subtitle :title="item[downloadUrlKey]" v-text="item[downloadUrlKey]" />
+                <v-list-item-subtitle :title="getItemDownloadUrl(item)" v-text="getItemDownloadUrl(item)" />
               </v-list-item-content>
               <v-list-item-action>
                 <v-btn icon @click="removeFromList(item.id)">
@@ -288,11 +289,12 @@ import { settings, store, toggleDrawer } from '@/store'
 import { langList } from '@/store/settings'
 import { loadPostsByPage, loadPostsByTags, refreshPosts } from '@/store/actions/post'
 import { getRecentTags, getUsername, isPopularPage } from '@/api/moebooru'
-import { defCompTags, getSiteTitle, isSupportTagSearch, notPartialSupportSite } from '@/api/booru'
+import { defCompTags, getSiteTitle, isSampleDownloadSupportedSite, isSupportTagSearch, notPartialSupportSite } from '@/api/booru'
 import { fetchAutocomplete, isAutocompleteAct } from '@/api/autocomplete'
 import { isSankakuSite } from '@/api/sankaku'
 import { isR34PahealHome } from '@/api/r34-paheal'
 import { isZerochanPage } from '@/api/zerochan'
+import { type DownloadUrlKey, getActiveDownloadUrlKey, getAvailableDownloadUrlKeys, resolvePostDownloadSource } from '@/utils/download-source'
 import i18n from '@/utils/i18n'
 
 const title = computed(() => `${getSiteTitle()} - ${store.imageList.length} Posts - Page `)
@@ -510,16 +512,27 @@ function download(url: string, name: string) {
   })
 }
 
-type ImgUrlKeys = 'fileUrl' | 'jpegUrl'
-type ImgNameKeys = 'jpegDownloadName' | 'fileDownloadName'
-const downloadUrlKey = ref<ImgUrlKeys>('fileUrl')
-const downloadNameMap: Record<ImgUrlKeys, ImgNameKeys> = {
-  fileUrl: 'fileDownloadName',
-  jpegUrl: 'jpegDownloadName',
-}
-const downloadNameKey = computed(() => {
-  return downloadNameMap[downloadUrlKey.value] || 'fileDownloadName'
+const hasSampleDownload = isSampleDownloadSupportedSite()
+const downloadSourceOptions = computed(() => {
+  const options: { text: string; value: DownloadUrlKey }[] = []
+  if (hasSampleDownload) options.push({ text: i18n.t('wI4KHHIe3zNRziW4lDZrp').toString(), value: 'sampleUrl' })
+  if (store.isYKSite) options.push({ text: i18n.t('aVqN9TBRCbNGsW3Y2D2Nm').toString(), value: 'jpegUrl' })
+  options.push({ text: i18n.t('jDjashxA-oBPo19DXI504').toString(), value: 'fileUrl' })
+  return options
 })
+const showDownloadSourceSwitch = computed(() => downloadSourceOptions.value.length > 1)
+const downloadUrlKey = computed<DownloadUrlKey>({
+  get: () => {
+    const keys = getAvailableDownloadUrlKeys(hasSampleDownload, store.isYKSite)
+    return getActiveDownloadUrlKey(keys, settings.downloadUrlKey)
+  },
+  set: val => {
+    settings.downloadUrlKey = val
+  },
+})
+function getItemDownloadUrl(item: typeof store.selectedImageList[number]) {
+  return resolvePostDownloadSource(item, downloadUrlKey.value).url || ''
+}
 const isGelbooru = location.host.includes('gelbooru')
 async function startDownload() {
   try {
@@ -527,17 +540,16 @@ async function startDownload() {
     if (isGelbooru) {
       for (let index = 0; index < len; index++) {
         const item = store.selectedImageList[index]
-        const downloadUrl = item[downloadUrlKey.value] || item.fileUrl
-        const downloadName = item[downloadNameKey.value]
-        if (!downloadUrl) continue
+        const { url: downloadUrl, name: downloadName } = resolvePostDownloadSource(item, downloadUrlKey.value)
+        if (!downloadUrl || !downloadName) continue
         download(downloadUrl, `${downloadName}`)
       }
       return
     }
     for (let index = 0; index < len; index++) {
       const item = store.selectedImageList[index]
-      const downloadUrl = item[downloadUrlKey.value] || item.fileUrl
-      let downloadName = store.isYKSite ? item.fileNameWithTags : item[downloadNameKey.value]
+      const { url: downloadUrl, name: resolvedName } = resolvePostDownloadSource(item, downloadUrlKey.value)
+      let downloadName = store.isYKSite ? item.fileNameWithTags || resolvedName : resolvedName
       if (isR34PahealHome()) {
         // @ts-expect-error protected prop
         downloadName = `${downloadName}.${item.data.file_name.split('.').pop()}`
@@ -560,7 +572,7 @@ const isExportUrlDecode = ref(true)
 const isExportUrlEncode = ref(false)
 async function exportFileUrls() {
   const urlText = store.selectedImageList.map(e => {
-    let url = e[downloadUrlKey.value] || e.fileUrl || ''
+    let url = resolvePostDownloadSource(e, downloadUrlKey.value).url || ''
     if (store.isYKSite && isExportUrlDecode.value) {
       try {
         url = decodeURIComponent(url)

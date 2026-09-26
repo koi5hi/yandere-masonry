@@ -226,6 +226,29 @@
           <v-switch v-model="settings.isThumbSampleUrl" inset />
         </v-list-item-action>
       </v-list-item>
+      <v-list-item v-if="showDownloadSourceSetting">
+        <v-list-item-content>
+          <v-list-item-title>{{ $t('downloadDefaultSizeTitle') }}</v-list-item-title>
+          <v-list-item-subtitle>{{ $t('downloadDefaultSizeSubtitle') }}</v-list-item-subtitle>
+        </v-list-item-content>
+        <v-list-item-action>
+          <v-menu transition="slide-y-transition" offset-y>
+            <template #activator="{ on, attrs }">
+              <v-btn small v-bind="attrs" class="sel_menu_btn" v-on="on">
+                {{ actDownloadSourceText }}
+                <v-icon :size="16">{{ mdiChevronDown }}</v-icon>
+              </v-btn>
+            </template>
+            <v-list dense>
+              <v-list-item-group :value="activeDownloadUrlKey" color="primary">
+                <v-list-item v-for="it in downloadSourceOptions" :key="it.value" :value="it.value" dense @click="settings.downloadUrlKey = it.value">
+                  <v-list-item-title>{{ it.text }}</v-list-item-title>
+                </v-list-item>
+              </v-list-item-group>
+            </v-list>
+          </v-menu>
+        </v-list-item-action>
+      </v-list-item>
       <v-list-item v-if="notPartialSupportSite">
         <v-list-item-content>
           <v-list-item-title>{{ $t('Ah2uP1cGRBQ6jff-SIc-Q') }}</v-list-item-title>
@@ -374,9 +397,10 @@ import { useWindowSize } from '@vueuse/core'
 import { mdiChevronDown, mdiClose, mdiContentCopy, mdiContentPaste } from '@mdi/js'
 import { settings, store } from '@/store'
 import { langList } from '@/store/settings'
-import { isBooruSite, notPartialSupportSite } from '@/api/booru'
+import { isBooruSite, isSampleDownloadSupportedSite, notPartialSupportSite } from '@/api/booru'
 import { showMsg } from '@/utils'
 import i18n from '@/utils/i18n'
+import { type DownloadUrlKey, getActiveDownloadUrlKey, getAvailableDownloadUrlKeys } from '@/utils/download-source'
 import { getMainDirHandle, isFsaSupported, setMainDirHandle } from '@/utils/fsa'
 
 const isBoorus = ref(isBooruSite())
@@ -414,6 +438,23 @@ function importBlacklist() {
     })
     .catch(() => showMsg({ msg: i18n.t('si-zDDRFrEwDTCkp53Q44') as string, type: 'error' }))
 }
+
+const hasSampleDownload = isSampleDownloadSupportedSite()
+const downloadSourceOptions = computed(() => {
+  const options: { text: string; value: DownloadUrlKey }[] = []
+  if (hasSampleDownload) options.push({ text: i18n.t('wI4KHHIe3zNRziW4lDZrp').toString(), value: 'sampleUrl' })
+  if (store.isYKSite) options.push({ text: i18n.t('k4YzDnBtd_S2UpAQucGxF').toString(), value: 'jpegUrl' })
+  options.push({ text: i18n.t('VpuyxZtIoDF9-YyOm0tK_').toString(), value: 'fileUrl' })
+  return options
+})
+const showDownloadSourceSetting = computed(() => notPartialSupportSite && downloadSourceOptions.value.length > 1)
+const activeDownloadUrlKey = computed(() => {
+  const keys = getAvailableDownloadUrlKeys(hasSampleDownload, store.isYKSite)
+  return getActiveDownloadUrlKey(keys, settings.downloadUrlKey)
+})
+const actDownloadSourceText = computed(() => {
+  return downloadSourceOptions.value.find(e => e.value === activeDownloadUrlKey.value)?.text || i18n.t('VpuyxZtIoDF9-YyOm0tK_').toString()
+})
 
 const downloadMethods = ref([
   { text: 'Tampermonkey', value: 'tm' } as const,

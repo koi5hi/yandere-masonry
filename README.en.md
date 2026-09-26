@@ -472,8 +472,6 @@ A: Please submit feedback on [GitHub Issues](https://github.com/asadahimeka/yand
 
 ## 💻 Development Guide
 
-The project code is **not** AI-generated; only the README file is AI-optimized
-
 ### Tech Stack
 
 * **Framework**: Vue 2.7 (Composition API)

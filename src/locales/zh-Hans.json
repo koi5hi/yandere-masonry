@@ -141,5 +141,7 @@
   "jx2FWrN3O_8T7U5aSbvXj": "选择图片的保存位置",
   "1sUsdpwBzU4gBf7Mrcihq": "图片保存目录",
   "rcpw-hgymDP2bsJPPUb_F": "选择图片的下载方式",
-  "Ah2uP1cGRBQ6jff-SIc-Q": "图片下载方式"
+  "Ah2uP1cGRBQ6jff-SIc-Q": "图片下载方式",
+  "downloadDefaultSizeTitle": "默认下载图片大小",
+  "downloadDefaultSizeSubtitle": "选择批量下载和快捷下载默认使用的图片链接"
 }
